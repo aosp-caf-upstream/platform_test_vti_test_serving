@@ -72,7 +72,15 @@ class LabModel(ndb.Model):
     owner = ndb.StringProperty(indexed=False)
     hostname = ndb.StringProperty(indexed=False)
     ip = ndb.StringProperty(indexed=False)
+    # devices is a comma-separated list of serial=product pairs
+    devices = ndb.StringProperty(indexed=False)
     timestamp = ndb.DateTimeProperty(auto_now=False, indexed=False)
+
+
+class LabDeviceInfoMessage(messages.Message):
+    """A message for representing an individual lab host's device entry."""
+    serial = messages.StringField(1, repeated=False)
+    product = messages.StringField(2, repeated=False)
 
 
 class LabHostInfoMessage(messages.Message):
@@ -80,6 +88,8 @@ class LabHostInfoMessage(messages.Message):
     hostname = messages.StringField(1, repeated=False)
     ip = messages.StringField(2, repeated=False)
     script = messages.StringField(3)
+    device = messages.MessageField(
+        LabDeviceInfoMessage, 4, repeated=True)
 
 
 class LabInfoMessage(messages.Message):
@@ -127,7 +137,7 @@ class JobModel(ndb.Model):
     shards = ndb.IntegerProperty(indexed=False)
     param = ndb.StringProperty(indexed=False, repeated=True)
     build_id = ndb.StringProperty(indexed=False)
-    status = ndb.StringProperty(indexed=False)
+    status = ndb.IntegerProperty(indexed=False)
     period = ndb.IntegerProperty(indexed=False)
     timestamp = ndb.DateTimeProperty(auto_now=False, indexed=False)
 
@@ -144,7 +154,7 @@ class JobMessage(messages.Message):
     shards = messages.IntegerField(8)
     param = messages.StringField(9, repeated=True)
     build_id = messages.StringField(10)
-    status = messages.StringField(11)
+    status = messages.IntegerField(11)
     period = messages.IntegerField(12)
 
 
