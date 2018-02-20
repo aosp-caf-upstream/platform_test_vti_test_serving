@@ -20,29 +20,41 @@ from protorpc import message_types
 from protorpc import remote
 
 from google.appengine.api import users
-from google.appengine.ext import deferred
 
 from webapp.src import vtslab_status as Status
 from webapp.src.proto import model
 
 HOST_INFO_RESOURCE = endpoints.ResourceContainer(model.HostInfoMessage)
 
-# The default timeout for devices in sec.
-_DEVICE_RESPONSE_TIMEOUT_IN_SECS = 300
+# Product type name for null device.
+_NULL_DEVICE_PRODUCT_TYPE = "null"
 
 
-def DeviceErrorOnTimeout(key):
-    """Issues and error on the timeout devices.
+def AddNullDevices(hostname, null_device_count):
+    """Adds null devices to DeviceModel data store.
 
-    Args
-        key: Datastore key for an entity.
+    Args:
+        hostname: string, the host name.
+        null_device_count: integer, the number of null devices.
     """
-    current_time = datetime.datetime.now()
-    device = key.get()
-    if (current_time -
-            device.timestamp).seconds >= _DEVICE_RESPONSE_TIMEOUT_IN_SECS:
-        device.status = Status.DEVICE_STATUS_DICT["no-response"]
-        device.put()
+    device_query = model.DeviceModel.query(
+        model.DeviceModel.hostname == hostname,
+        model.DeviceModel.product == _NULL_DEVICE_PRODUCT_TYPE
+    )
+    null_devices = device_query.fetch()
+    existing_null_device_count = len(null_devices)
+
+    if existing_null_device_count < null_device_count:
+        for _ in range(null_device_count - existing_null_device_count):
+            device = model.DeviceModel()
+            device.hostname = hostname
+            device.serial = "n/a"
+            device.product = _NULL_DEVICE_PRODUCT_TYPE
+            device.status = Status.DEVICE_STATUS_DICT["ready"]
+            device.scheduling_status = Status.DEVICE_SCHEDULING_STATUS_DICT[
+                "free"]
+            device.timestamp = datetime.datetime.now()
+            device.put()
 
 
 @endpoints.api(name='host_info', version='v1')
@@ -57,48 +69,29 @@ class HostInfoApi(remote.Service):
         name='set')
     def set(self, request):
         """Sets the host info based on the `request`."""
-        device_query = model.DeviceModel.query()
-        existing_devices = device_query.fetch()
-
         if users.get_current_user():
             username = users.get_current_user().email()
         else:
             username = "anonymous"
 
-        device = model.DeviceModel()
         for request_device in request.devices:
-            # it already exists.
-            hit = False
-            for existing_device in existing_devices:
-                if request_device.serial == existing_device.serial:
-                    hit = True
-                    existing_device.username = username
-                    existing_device.hostname = request.hostname
-                    existing_device.product = request_device.product
-                    existing_device.status = request_device.status
-                    existing_device.timestamp = datetime.datetime.now()
-                    device_key = existing_device.put()
-                    deferred.defer(
-                        DeviceErrorOnTimeout,
-                        device_key,
-                        _countdown=_DEVICE_RESPONSE_TIMEOUT_IN_SECS)
-                    break
-
-            if not hit:
+            device_query = model.DeviceModel.query(
+                model.DeviceModel.serial == request_device.serial
+            )
+            existing_device = device_query.fetch()
+            if existing_device:
+                device = existing_device[0]
+            else:
                 device = model.DeviceModel()
-                device.username = username
-                device.hostname = request.hostname
                 device.serial = request_device.serial
-                device.product = request_device.product
-                device.status = request_device.status
-                device.scheduling_status = \
-                    Status.DEVICE_SCHEDULING_STATUS_DICT["free"]
-                device.timestamp = datetime.datetime.now()
-                device_key = device.put()
-                deferred.defer(
-                    DeviceErrorOnTimeout,
-                    device_key,
-                    _countdown=_DEVICE_RESPONSE_TIMEOUT_IN_SECS)
+                device.scheduling_status = Status.DEVICE_SCHEDULING_STATUS_DICT[
+                    "free"]
+            device.username = username
+            device.hostname = request.hostname
+            device.product = request_device.product
+            device.status = request_device.status
+            device.timestamp = datetime.datetime.now()
+            device.put()
 
         return model.DefaultResponse(
             return_code=model.ReturnCodeMessage.SUCCESS)

@@ -1,26 +1,26 @@
 indexes:
-- kind: Device
+- kind: DeviceModel
   ancestor: no
   properties:
   - name: hostname
+    direction: asc
   - name: product
   - name: serial
   - name: status
   - name: scheduling_status
-    direction: asc
 
-- kind: Build
+- kind: BuildModel
   ancestor: no
   properties:
   - name: manifest_branch
   - name: build_id
+    direction: desc
   - name: build_target
   - name: build_type
   - name: artifact_type
   - name: artifacts
-    direction: asc
 
-- kind: Schedule
+- kind: ScheduleModel
   ancestor: no
   properties:
   - name: manifest_branch
@@ -31,9 +31,14 @@ indexes:
   - name: device
   - name: shards
   - name: param
-    direction: asc
+  - name: gsi_branch
+  - name: gsi_build_target
+  - name: gsi_pab_account_id
+  - name: test_branch
+  - name: test_build_target
+  - name: test_pab_account_id
 
-- kind: Lab
+- kind: LabModel
   ancestor: no
   properties:
   - name: name
@@ -42,9 +47,8 @@ indexes:
   - name: ip
   - name: script
   - name: devices
-    direction: asc
 
-- kind: Job
+- kind: JobModel
   ancestor: no
   properties:
   - name: hostname
@@ -59,4 +63,10 @@ indexes:
   - name: param
   - name: build_id
   - name: status
+  - name: gsi_branch
+  - name: gsi_build_target
+  - name: gsi_pab_account_id
+  - name: test_branch
+  - name: test_build_target
+  - name: test_pab_account_id
     direction: asc

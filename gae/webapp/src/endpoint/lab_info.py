@@ -22,6 +22,7 @@ from protorpc import remote
 
 from google.appengine.ext import ndb
 
+from webapp.src.endpoint import host_info
 from webapp.src.proto import model
 
 
@@ -56,9 +57,6 @@ class LabInfoApi(remote.Service):
         name="set")
     def set(self, request):
         """Sets the lab info based on `request`."""
-        lab_query = model.LabModel.query()
-        existing_labs = lab_query.fetch()
-
         for host in request.host:
             lab = model.LabModel()
             lab.name = request.name
@@ -67,13 +65,19 @@ class LabInfoApi(remote.Service):
             lab.ip = host.ip
             lab.script = host.script
             devices = []
+            null_device_count = 0
             if host.device:
                 for device in host.device:
-                    devices += "%s=%s" % (device.serial, device.product)
+                    devices.append("%s=%s" % (device.serial, device.product))
+                    if device.product == "null":
+                        null_device_count += 1
             if devices:
                 lab.devices = ",".join(devices)
             lab.timestamp = datetime.datetime.now()
             lab.put()
+
+            if null_device_count > 0:
+                host_info.AddNullDevices(host.hostname, null_device_count)
 
         return model.DefaultResponse(
             return_code=model.ReturnCodeMessage.SUCCESS)

@@ -19,8 +19,8 @@ import datetime
 import webapp2
 
 from webapp.src import vtslab_status as Status
-from webapp.src.dashboard import build_list
 from webapp.src.proto import model
+from webapp.src.utils import logger
 
 
 def StrGT(left, right):
@@ -33,82 +33,90 @@ def StrGT(left, right):
 
 
 class PeriodicScheduler(webapp2.RequestHandler):
-    """Main class for /tasks/schedule servlet which does actual job scheduling.
+    """Main class for /tasks/schedule servlet.
 
-    periodic scheduling.
+    This class creates jobs from registered schedules periodically.
 
     Attributes:
-        log_message: a list of strings, containing the log messages.
+        logger: Logger class
     """
+    def __init__(self):
+        self.logger = logger.Logger()
 
-    log_message = []
+    def ReserveDevices(self, target_device_serials):
+        """Reserves devices.
 
-    def ReserveDevices(self, devices, target_device_serials):
-        """..."""
+        Args:
+            target_device_serials: a list of strings, containing target device
+                                   serial numbers.
+        """
+        device_query = model.DeviceModel.query(
+            model.DeviceModel.serial.IN(target_device_serials)
+        )
+        devices = device_query.fetch()
         for device in devices:
-            if device.serial in target_device_serials:
-                device.scheduling_status = Status.DEVICE_SCHEDULING_STATUS_DICT[
-                    "reserved"]
-                device.put()
+            device.scheduling_status = Status.DEVICE_SCHEDULING_STATUS_DICT[
+                "reserved"]
+            device.put()
 
-    def FindBuildId(self, new_job, builds):
-        build_id = new_job.build_id
+    def FindBuildId(self, new_job):
+        """Finds build ID for a new job.
+
+        Args:
+            new_job: JobModel, a new job.
+
+        Return:
+            string, build ID found.
+        """
+        build_id = ""
+        build_query = model.BuildModel.query(
+            model.BuildModel.manifest_branch == new_job.manifest_branch
+        )
+        builds = build_query.fetch()
 
         if builds:
-            self.LogPrintln("-- Find build ID")
-
-            for device_build in builds:
-                if device_build.artifact_type != "device":
-                    continue
-
-                if (not hasattr(device_build, "build_target")
-                        or not hasattr(device_build, "build_type")
-                        or not hasattr(device_build, "manifest_branch")
-                        or not hasattr(device_build, "build_id")):
-                    self.LogPrintln(
-                        "-- some field(s) missing ERROR %s" % device_build)
-                    continue
-
-                candidate_device = "-".join(
+            self.logger.Println("-- Find build ID")
+            # Remove builds if build_id info is none
+            build_id_filled = [x for x in builds if x.build_id]
+            sorted_list = sorted(
+                build_id_filled,
+                key=lambda x: int(x.build_id),
+                reverse=True)
+            filtered_list = [
+                x for x in sorted_list if (
+                    all(
+                        hasattr(x, attrs) for attrs in [
+                            "build_target", "build_type", "build_id"
+                        ])
+                    and x.build_target and x.build_type)
+            ]
+            for device_build in filtered_list:
+                candidate_build_target = "-".join(
                     [device_build.build_target, device_build.build_type])
-                self.LogPrintln("-- check candidate_device %s (%s)" %
-                                (candidate_device, new_job.build_target[0]))
-                if (device_build.manifest_branch == new_job.manifest_branch
-                        and new_job.build_target[0] == candidate_device):
-                    if (not build_id
-                            or StrGT(device_build.build_id, build_id)):
-                        build_id = device_build.build_id
+                if new_job.build_target == candidate_build_target:
+                    build_id = device_build.build_id
+                    break
         return build_id
 
     def get(self):
         """Generates an HTML page based on the task schedules kept in DB."""
-        self.LogClear()
+        self.logger.Clear()
 
         schedule_query = model.ScheduleModel.query()
         schedules = schedule_query.fetch()
 
-        lab_query = model.LabModel.query()
-        labs = lab_query.fetch()
-
-        device_query = model.DeviceModel.query()
-        devices = device_query.fetch()
-
-        job_query = model.JobModel.query()
-        jobs = job_query.fetch()
-
-        build_query = model.BuildModel.query()
-        builds = build_query.fetch()
-
         if schedules:
             for schedule in schedules:
-                self.LogPrintln("Schedule: %s" % schedule.test_name)
+                self.logger.Println("Schedule: %s (%s %s)" % (
+                    schedule.test_name, schedule.manifest_branch,
+                    schedule.build_target))
                 self.LogIndent()
-                if self.NewPeriod(schedule, jobs):
-                    self.LogPrintln("- Need new job")
+                if self.NewPeriod(schedule):
+                    self.logger.Println("- Need new job")
                     target_host, target_device_serials = self.SelectTargetLab(
-                        schedule, labs, devices)
-                    self.LogPrintln("- Target host: %s" % target_host)
-                    self.LogPrintln(
+                        schedule)
+                    self.logger.Println("- Target host: %s" % target_host)
+                    self.logger.Println(
                         "- Target serials: %s" % target_device_serials)
                     # TODO: update device status
 
@@ -122,178 +130,132 @@ class PeriodicScheduler(webapp2.RequestHandler):
                         new_job.period = schedule.period
                         new_job.serial.extend(target_device_serials)
                         new_job.manifest_branch = schedule.manifest_branch
-                        new_job.build_target.extend(schedule.build_target)
+                        new_job.build_target = schedule.build_target
                         new_job.shards = schedule.shards
                         new_job.param = schedule.param
+                        new_job.gsi_branch = schedule.gsi_branch
+                        new_job.gsi_build_target = schedule.gsi_build_target
+                        new_job.gsi_pab_account_id = schedule.gsi_pab_account_id
+                        new_job.test_branch = schedule.test_branch
+                        new_job.test_build_target = schedule.test_build_target
+                        new_job.test_pab_account_id = \
+                            schedule.test_pab_account_id
+
                         # assume device build
                         #_, device_builds, _ = build_list.ReadBuildInfo()
 
                         new_job.build_id = ""
-                        new_job.build_id = self.FindBuildId(new_job, builds)
-                        org_build_target = new_job.build_target[0]
-                        if not new_job.build_id:
-                            if new_job.build_target[0].startswith("aosp_"):
-                                new_job.build_target[0] = new_job.build_target[
-                                    0].replace("aosp_", "")
-                                new_job.build_id = self.FindBuildId(
-                                    new_job, builds)
-                            else:
-                                new_job.build_target[
-                                    0] = "aosp_" + new_job.build_target[0]
-                                new_job.build_id = self.FindBuildId(
-                                    new_job, builds)
-
-                        new_job.build_target[0] = org_build_target
-                        if not new_job.build_id:
-                            if new_job.build_target[0].endswith("-user"):
-                                new_job.build_target[0] = new_job.build_target[
-                                    0].replace("-user", "-userdebug")
-                                new_job.build_id = self.FindBuildId(
-                                    new_job, builds)
-                            elif new_job.build_target[0].endswith(
-                                    "-userdebug"):
-                                new_job.build_target[0] = new_job.build_target[
-                                    0].replace("-userdebug", "-user")
-                                new_job.build_id = self.FindBuildId(
-                                    new_job, builds)
-
-                        if not new_job.build_id:
-                            if new_job.build_target[0].startswith("aosp_"):
-                                new_job.build_target[0] = new_job.build_target[
-                                    0].replace("aosp_", "")
-                                new_job.build_id = self.FindBuildId(
-                                    new_job, builds)
-                            else:
-                                new_job.build_target[
-                                    0] = "aosp_" + new_job.build_target[0]
-                                new_job.build_id = self.FindBuildId(
-                                    new_job, builds)
+                        new_job.build_id = self.FindBuildId(new_job)
 
                         if new_job.build_id:
-                            self.ReserveDevices(devices, target_device_serials)
+                            self.ReserveDevices(target_device_serials)
                             # TODO remove only until full builds are available.
                             new_job.status = Status.JOB_STATUS_DICT["ready"]
                             new_job.timestamp = datetime.datetime.now()
                             new_job.put()
-                            self.LogPrintln("NEW JOB")
+                            self.logger.Println("NEW JOB")
                         else:
-                            self.LogPrintln("NO BUILD FOUND")
-                self.LogUnindent()
+                            self.logger.Println("NO BUILD FOUND")
+                self.logger.Unindent()
 
         self.response.write(
-            "<pre>\n" + "\n".join(self.log_message) + "\n</pre>")
+            "<pre>\n" + "\n".join(self.logger.Get()) + "\n</pre>")
 
-    def LogClear(self):
-        """Clears the log buffer."""
-        self.log_message = []
-        self.log_indent = 0
-
-    def LogPrintln(self, msg):
-        """Stores a new string `msg` to the log buffer."""
-        indent = "  " * self.log_indent
-        self.log_message.append(indent + msg)
-
-    def LogIndent(self):
-        self.log_indent += 1
-
-    def LogUnindent(self):
-        self.log_indent -= 1
-
-    def NewPeriod(self, schedule, jobs):
+    def NewPeriod(self, schedule):
         """Checks whether a new job creation is needed.
 
         Args:
             schedule: a proto containing schedule information.
-            jobs: a list of proto messages containing existing job information.
 
         Returns:
             True if new job is required, False otherwise.
         """
-        if not jobs:
+        job_query = model.JobModel.query(
+            model.JobModel.manifest_branch == schedule.manifest_branch,
+            model.JobModel.build_target == schedule.build_target,
+            model.JobModel.test_name == schedule.test_name,
+            model.JobModel.period == schedule.period,
+            model.JobModel.device == schedule.device,
+            model.JobModel.shards == schedule.shards,
+            model.JobModel.gsi_branch == schedule.gsi_branch,
+            model.JobModel.test_branch == schedule.test_branch
+        )
+        same_jobs = job_query.fetch()
+        same_jobs = [x for x in same_jobs
+                     if set(x.param) == set(schedule.param)]
+        if not same_jobs:
             return True
 
-        def IsScheduleAndJobTheSame(schedule, job):
-            return (job.manifest_branch == schedule.manifest_branch
-                    and job.build_target == schedule.build_target
-                    and job.test_name == schedule.test_name
-                    and job.period == schedule.period
-                    and job.device == schedule.device
-                    and job.shards == schedule.shards
-                    and job.param == schedule.param)
+        ready_jobs = [x for x in same_jobs
+                      if x.status == Status.JOB_STATUS_DICT["ready"]]
+        if ready_jobs:
+            return False
 
-        latest_timestamp = None
-        for job in jobs:
-            if IsScheduleAndJobTheSame(schedule, job):
-                #if ((job.status == "COMPLETE" or job.status == "LEASED") and
-                if latest_timestamp is None:
-                    latest_timestamp = job.timestamp
-                elif latest_timestamp < job.timestamp:
-                    latest_timestamp = job.timestamp
-
-        if latest_timestamp is None:
+        same_jobs = sorted(
+            same_jobs, key=lambda x: x.timestamp, reverse=True)
+        if (same_jobs[0].timestamp <=
+            (datetime.datetime.now() -
+             datetime.timedelta(minutes=same_jobs[0].period))):
             return True
+        else:
+            return False
 
-        if (latest_timestamp <= (datetime.datetime.now() -
-                                 datetime.timedelta(minutes=job.period))):
-            return True
-
-        return False
-
-    def SelectTargetLab(self, schedule, labs, devices):
+    def SelectTargetLab(self, schedule):
         """Find target host and devices to schedule a new job.
 
         Args:
             schedule: a proto containing the information of a schedule.
-            labs: a list of proto messages containing info about available
-                  labs.
-            devices: a list of proto messages containing available device
-                     information.
 
         Returns:
             hostname,
-            a list of selected devices  (see whether devices will be selected later when the job is picked up.)
+            a list of selected devices  (see whether devices will be selected
+            later when the job is picked up.)
         """
         if "/" not in schedule.device:
             # device malformed
             return None, None
 
         target_lab, target_product_type = schedule.device.split("/")
-        self.LogPrintln("- Seeking product %s in lab %s" %
+        self.logger.Println("- Seeking product %s in lab %s" %
                         (target_product_type, target_lab))
-        self.LogIndent()
+        self.logger.Indent()
+        lab_query = model.LabModel.query(
+            model.LabModel.name == target_lab
+        )
+        target_labs = lab_query.fetch()
 
         available_devices = {}
-        if labs and devices:
-            for lab in labs:
-                if lab.name != target_lab:
-                    continue
-                self.LogPrintln("- target lab found")
-                self.LogPrintln("- target device %s %s" %
+        if target_labs:
+            for lab in target_labs:
+                self.logger.Println("- target lab found")
+                self.logger.Println("- target device %s %s" %
                                 (lab.hostname, target_product_type))
-                self.LogIndent()
-                for device in devices:
-                    self.LogPrintln("- check device %s %s %s" % (
-                                       device.hostname, device.status,
-                                       device.product))
-                    if (device.hostname == lab.hostname and (device.status in [
-                        Status.DEVICE_STATUS_DICT["fastboot"],
-                        Status.DEVICE_STATUS_DICT["online"],
-                        Status.DEVICE_STATUS_DICT["ready"]
-                    ]) and (device.scheduling_status in [
-                        Status.DEVICE_SCHEDULING_STATUS_DICT["free"]
-                    ]) and device.product == target_product_type):
-                        self.LogPrintln("- a device found %s" % device.serial)
+                self.logger.Indent()
+                device_query = model.DeviceModel.query(
+                    model.DeviceModel.hostname == lab.hostname
+                )
+                host_devices = device_query.fetch()
+
+                for device in host_devices:
+                    self.logger.Println("- check device %s %s" %
+                                    (device.status, device.product))
+                    if ((device.status in [
+                            Status.DEVICE_STATUS_DICT["fastboot"],
+                            Status.DEVICE_STATUS_DICT["online"],
+                            Status.DEVICE_STATUS_DICT["ready"]
+                    ]) and (device.scheduling_status ==
+                            Status.DEVICE_SCHEDULING_STATUS_DICT["free"]
+                    ) and device.product == target_product_type):
+                        self.logger.Println(
+                            "- a device found %s" % device.serial)
                         if device.hostname not in available_devices:
-                            available_devices[device.hostname] = []
-                        available_devices[device.hostname].append(
-                            device.serial)
-                self.LogUnindent()
-        self.LogUnindent()
-
-        for host in available_devices:
-            self.LogPrintln("- len(devices) %s > shards %s ?" %
-                            (len(available_devices[host]), schedule.shards))
-            if len(available_devices[host]) >= schedule.shards:
-                return host, available_devices[host][:schedule.shards]
-
+                            available_devices[device.hostname] = set()
+                        available_devices[device.hostname].add(device.serial)
+                self.logger.Unindent()
+            for host in available_devices:
+                self.logger.Println("- len(devices) %s > shards %s ?" %
+                                (len(available_devices[host]), schedule.shards))
+                if len(available_devices[host]) >= schedule.shards:
+                    return host, list(available_devices[host])[:schedule.shards]
+        self.logger.Unindent()
         return None, []
