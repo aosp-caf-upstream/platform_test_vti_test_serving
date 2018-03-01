@@ -33,45 +33,43 @@ class PeriodicJobHeartBeat(webapp2.RequestHandler):
     Attributes:
         logger: Logger class
     """
-
-    def __init__(self):
-        self.logger = logger.Logger()
+    logger = logger.Logger()
 
     def get(self):
-        """Generates an HTML page based on the task schedules kept in DB."""
-        self.logger.LogClear()
+        """Generates an HTML page based on the jobs kept in DB."""
+        self.logger.Clear()
 
-        job_query = model.JobModel.query()
+        job_query = model.JobModel.query(
+            model.JobModel.status == Status.JOB_STATUS_DICT["leased"]
+        )
         jobs = job_query.fetch()
 
-        lost_jobs = [
-            x for x in jobs
-            if x.heartbeat_stamp and
-            (datetime.datetime.now() - x.heartbeat_stamp
-             ).seconds >= JOB_RESPONSE_TIMEOUT_SECONDS
-            and x.status == Status.JOB_STATUS_DICT["leased"]
-        ]
+        lost_jobs = []
+        for job in jobs:
+            if job.heartbeat_stamp:
+                job_timestamp = job.heartbeat_stamp
+            else:
+                job_timestamp = job.timestamp
+            if (datetime.datetime.now() -
+                    job_timestamp).seconds >= JOB_RESPONSE_TIMEOUT_SECONDS:
+                lost_jobs.append(job)
+
         for job in lost_jobs:
-            self.logger.LogPrintln("Lost job found")
-            self.logger.LogPrintln(
-                "[hostname]{} [device]{} [testname]{}".format(
-                    job.hostname, job.device, job.testname))
+            self.logger.Println("Lost job found")
+            self.logger.Println(
+                "[hostname]{} [device]{} [test_name]{}".format(
+                    job.hostname, job.device, job.test_name))
             job.status = Status.JOB_STATUS_DICT["infra-err"]
             job.put()
 
-            device_query = model.DeviceModel.query()
+            device_query = model.DeviceModel.query(
+                model.DeviceModel.serial.IN(job.serial)
+            )
             devices = device_query.fetch()
 
-            devices_in_job = [x for x in devices if x.serial in job.serial]
-
-            for device in devices_in_job:
-                if job.status == Status.JOB_STATUS_DICT["leased"]:
-                    status = Status.DEVICE_SCHEDULING_STATUS_DICT["use"]
-                elif job.status == Status.JOB_STATUS_DICT["ready"]:
-                    status = Status.DEVICE_SCHEDULING_STATUS_DICT["reserved"]
-                else:
-                    status = Status.DEVICE_SCHEDULING_STATUS_DICT["free"]
-                device.scheduling_status = status
+            for device in devices:
+                device.scheduling_status = Status.DEVICE_SCHEDULING_STATUS_DICT[
+                    "free"]
                 device.put()
 
         self.response.write(
