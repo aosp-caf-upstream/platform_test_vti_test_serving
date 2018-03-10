@@ -76,13 +76,17 @@
         <td>device
         <td>period
         <td>shards
+        <td>retry_count
         <td>param
         <td>hostname
         <td>priority
         <td>serial
         <td>build_id
+        <td>GSI
+        <td>test suite
         <td>status
-        <td>timestamp
+        <td>created
+        <td>last heartbeat
       </tr>
       {% set index = 1 %}
       {% for job in jobs %}
@@ -93,9 +97,7 @@
         <td>
           {{ job.manifest_branch }}
         <td>
-          {% for build_target in job.build_target %}
-          {{ build_target }} <br>
-          {% endfor %}
+          {{ job.build_target }}
         <td>
           {{ job.test_name }}
         <td>
@@ -104,6 +106,8 @@
           {{ job.period }}
         <td>
           {{ job.shards }}
+        <td>
+          {{ job.retry_count }}
         <td>
           {{ job.param }}
         <td>
@@ -115,12 +119,22 @@
         <td>
           {{ job.build_id }}
         <td>
+          {{ job.gsi_branch }} /
+          {{ job.gsi_build_target }} /
+          {{ job.gsi_pab_account_id }}
+        <td>
+          {{ job.test_branch }} /
+          {{ job.test_build_target }} /
+          {{ job.test_pab_account_id }}
+        <td>
           {{ {0: "ready",
               1: "leased",
               2: "complete",
               3: "infra-err"}[job.status] | default("status key error") }}
         <td>
           {{ job.timestamp }}
+        <td>
+          {{ job.heartbeat_stamp }}
       </tr>
       {% endfor %}
       </table>

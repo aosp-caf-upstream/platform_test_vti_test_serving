@@ -22,13 +22,13 @@ from protorpc import messages
 
 class BuildModel(ndb.Model):
     """A model for representing an individual build entry."""
-    manifest_branch = ndb.StringProperty(indexed=False)
-    build_id = ndb.StringProperty(indexed=False)
-    build_target = ndb.StringProperty(indexed=False)
-    build_type = ndb.StringProperty(indexed=False)
-    artifact_type = ndb.StringProperty(indexed=False)
-    artifacts = ndb.StringProperty(indexed=False, repeated=True)
-    timestamp = ndb.DateTimeProperty(auto_now=False, indexed=False)
+    manifest_branch = ndb.StringProperty()
+    build_id = ndb.StringProperty()
+    build_target = ndb.StringProperty()
+    build_type = ndb.StringProperty()
+    artifact_type = ndb.StringProperty()
+    artifacts = ndb.StringProperty(repeated=True)
+    timestamp = ndb.DateTimeProperty(auto_now=False)
 
 
 class BuildInfoMessage(messages.Message):
@@ -43,38 +43,52 @@ class BuildInfoMessage(messages.Message):
 
 class ScheduleModel(ndb.Model):
     """A model for representing an individual schedule entry."""
-    manifest_branch = ndb.StringProperty(indexed=False)
-    build_target = ndb.StringProperty(indexed=False, repeated=True)  # type:name
-    test_name = ndb.StringProperty(indexed=False)
-    period = ndb.IntegerProperty(indexed=False)
-    priority = ndb.StringProperty(indexed=False)
-    device = ndb.StringProperty(indexed=False)
-    shards = ndb.IntegerProperty(indexed=False)
-    param = ndb.StringProperty(indexed=False, repeated=True)
-    timestamp = ndb.DateTimeProperty(auto_now=False, indexed=False)
+    manifest_branch = ndb.StringProperty()
+    build_target = ndb.StringProperty()  # type:name
+    test_name = ndb.StringProperty()
+    period = ndb.IntegerProperty()
+    priority = ndb.StringProperty()
+    device = ndb.StringProperty()
+    shards = ndb.IntegerProperty()
+    param = ndb.StringProperty(repeated=True)
+    gsi_branch = ndb.StringProperty()
+    gsi_build_target = ndb.StringProperty()
+    gsi_pab_account_id = ndb.StringProperty()
+    test_branch = ndb.StringProperty()
+    test_build_target = ndb.StringProperty()
+    test_pab_account_id = ndb.StringProperty()
+    timestamp = ndb.DateTimeProperty(auto_now=False)
+    retry_count = ndb.IntegerProperty()
 
 
 class ScheduleInfoMessage(messages.Message):
     """A message for representing an individual schedule entry."""
     manifest_branch = messages.StringField(1)
-    build_target = messages.StringField(2, repeated=True)
+    build_target = messages.StringField(2)
     test_name = messages.StringField(3)
     period = messages.IntegerField(4)
     priority = messages.StringField(5)
     device = messages.StringField(6)
     shards = messages.IntegerField(7)
     param = messages.StringField(8, repeated=True)
+    gsi_branch = messages.StringField(9)
+    gsi_build_target = messages.StringField(10)
+    gsi_pab_account_id = messages.StringField(11)
+    test_branch = messages.StringField(12)
+    test_build_target = messages.StringField(13)
+    test_pab_account_id = messages.StringField(14)
+    retry_count = messages.IntegerField(15)
 
 
 class LabModel(ndb.Model):
     """A model for representing an individual lab entry."""
-    name = ndb.StringProperty(indexed=False)
-    owner = ndb.StringProperty(indexed=False)
-    hostname = ndb.StringProperty(indexed=False)
-    ip = ndb.StringProperty(indexed=False)
+    name = ndb.StringProperty()
+    owner = ndb.StringProperty()
+    hostname = ndb.StringProperty()
+    ip = ndb.StringProperty()
     # devices is a comma-separated list of serial=product pairs
-    devices = ndb.StringProperty(indexed=False)
-    timestamp = ndb.DateTimeProperty(auto_now=False, indexed=False)
+    devices = ndb.StringProperty()
+    timestamp = ndb.DateTimeProperty(auto_now=False)
 
 
 class LabDeviceInfoMessage(messages.Message):
@@ -102,12 +116,12 @@ class LabInfoMessage(messages.Message):
 
 class DeviceModel(ndb.Model):
     """A model for representing an individual device entry."""
-    hostname = ndb.StringProperty(indexed=False)
-    product = ndb.StringProperty(indexed=False)
-    serial = ndb.StringProperty(indexed=False)
-    status = ndb.IntegerProperty(indexed=False)
-    scheduling_status = ndb.IntegerProperty(indexed=False)
-    timestamp = ndb.DateTimeProperty(auto_now=False, indexed=False)
+    hostname = ndb.StringProperty()
+    product = ndb.StringProperty()
+    serial = ndb.StringProperty()
+    status = ndb.IntegerProperty()
+    scheduling_status = ndb.IntegerProperty()
+    timestamp = ndb.DateTimeProperty(auto_now=False)
 
 
 class DeviceInfoMessage(messages.Message):
@@ -127,19 +141,27 @@ class HostInfoMessage(messages.Message):
 
 class JobModel(ndb.Model):
     """A model for representing an individual job entry."""
-    hostname = ndb.StringProperty(indexed=False)
-    priority = ndb.StringProperty(indexed=False)
-    test_name = ndb.StringProperty(indexed=False)
-    device = ndb.StringProperty(indexed=False)
-    serial = ndb.StringProperty(indexed=False, repeated=True)
-    manifest_branch = ndb.StringProperty(indexed=False)
-    build_target = ndb.StringProperty(indexed=False, repeated=True)
-    shards = ndb.IntegerProperty(indexed=False)
-    param = ndb.StringProperty(indexed=False, repeated=True)
-    build_id = ndb.StringProperty(indexed=False)
-    status = ndb.IntegerProperty(indexed=False)
-    period = ndb.IntegerProperty(indexed=False)
-    timestamp = ndb.DateTimeProperty(auto_now=False, indexed=False)
+    hostname = ndb.StringProperty()
+    priority = ndb.StringProperty()
+    test_name = ndb.StringProperty()
+    device = ndb.StringProperty()
+    serial = ndb.StringProperty(repeated=True)
+    manifest_branch = ndb.StringProperty()
+    build_target = ndb.StringProperty()
+    shards = ndb.IntegerProperty()
+    param = ndb.StringProperty(repeated=True)
+    build_id = ndb.StringProperty()
+    status = ndb.IntegerProperty()
+    period = ndb.IntegerProperty()
+    gsi_branch = ndb.StringProperty()
+    gsi_build_target = ndb.StringProperty()
+    gsi_pab_account_id = ndb.StringProperty()
+    test_branch = ndb.StringProperty()
+    test_build_target = ndb.StringProperty()
+    test_pab_account_id = ndb.StringProperty()
+    timestamp = ndb.DateTimeProperty(auto_now=False)
+    heartbeat_stamp = ndb.DateTimeProperty(auto_now=False)
+    retry_count = ndb.IntegerProperty()
 
 
 class JobMessage(messages.Message):
@@ -150,12 +172,19 @@ class JobMessage(messages.Message):
     device = messages.StringField(4)
     serial = messages.StringField(5, repeated=True)
     manifest_branch = messages.StringField(6)
-    build_target = messages.StringField(7, repeated=True)
+    build_target = messages.StringField(7)
     shards = messages.IntegerField(8)
     param = messages.StringField(9, repeated=True)
     build_id = messages.StringField(10)
     status = messages.IntegerField(11)
     period = messages.IntegerField(12)
+    gsi_branch = messages.StringField(13)
+    gsi_build_target = messages.StringField(14)
+    gsi_pab_account_id = messages.StringField(15)
+    test_branch = messages.StringField(16)
+    test_build_target = messages.StringField(17)
+    test_pab_account_id = messages.StringField(18)
+    retry_count = messages.IntegerField(19)
 
 
 class ReturnCodeMessage(messages.Enum):
