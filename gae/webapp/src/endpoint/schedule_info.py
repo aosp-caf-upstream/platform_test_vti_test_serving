@@ -54,21 +54,22 @@ class ScheduleInfoApi(remote.Service):
         name="set")
     def set(self, request):
         """Sets the schedule info based on `request`."""
-        schedlue_query = model.ScheduleModel.query()
-        existing_schedules = schedlue_query.fetch()
-
         schedule = model.ScheduleModel()
         schedule.manifest_branch = request.manifest_branch
-        if request.build_target:
-            for build_target in request.build_target:
-                schedule.build_target.append(build_target)
-
+        schedule.build_target = request.build_target
         schedule.test_name = request.test_name
         schedule.period = request.period
         schedule.priority = request.priority
         schedule.device = request.device
         schedule.shards = request.shards
         schedule.param = request.param
+        schedule.retry_count = request.retry_count
+        schedule.gsi_branch = request.gsi_branch
+        schedule.gsi_build_target = request.gsi_build_target
+        schedule.gsi_pab_account_id = request.gsi_pab_account_id
+        schedule.test_branch = request.test_branch
+        schedule.test_build_target = request.test_build_target
+        schedule.test_pab_account_id = request.test_pab_account_id
         schedule.timestamp = datetime.datetime.now()
         schedule.put()
 

@@ -76,7 +76,9 @@
         <td>period
         <td>device
         <td>shards
+        <td>retry_count
         <td>param
+        <td>priority
         <td>timestamp
       </tr>
       {% set index = 1 %}
@@ -88,9 +90,7 @@
         <td>
           {{ schedule.manifest_branch }}
         <td>
-          {% for build_target in schedule.build_target %}
-          {{ build_target }} <br>
-          {% endfor %}
+          {{ schedule.build_target }}
         <td>
           {{ schedule.test_name }}
         <td>
@@ -100,7 +100,11 @@
         <td>
           {{ schedule.shards }}
         <td>
+          {{ schedule.retry_count }}
+        <td>
           {{ schedule.param }}
+        <td>
+          {{ schedule.priority }}
         <td>
           {{ schedule.timestamp }}
       </tr>

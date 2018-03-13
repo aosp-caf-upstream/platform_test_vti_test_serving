@@ -19,12 +19,18 @@
     "WebappSrcProtoModelScheduleInfoMessage": {
       "properties": {
         "build_target": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
+          "type": "string"
         },
         "device": {
+          "type": "string"
+        },
+        "gsi_branch": {
+          "type": "string"
+        },
+        "gsi_build_target": {
+          "type": "string"
+        },
+        "gsi_pab_account_id": {
           "type": "string"
         },
         "manifest_branch": {
@@ -47,7 +53,20 @@
           "format": "int64",
           "type": "string"
         },
+        "retry_count": {
+          "format": "int64",
+          "type": "string"
+        },
         "test_name": {
+          "type": "string"
+        },
+        "test_branch": {
+          "type": "string"
+        },
+        "test_build_target": {
+          "type": "string"
+        },
+        "test_pab_account_id": {
           "type": "string"
         }
       },
@@ -56,6 +75,7 @@
   },
   "host": "vtslab-schedule-prod.appspot.com",
   "info": {
+    "description": "Endpoint API for schedule_info.",
     "title": "schedule_info",
     "version": "v1"
   },
